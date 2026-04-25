@@ -8,6 +8,7 @@
   --muted: #a6b0c8;
   --accent: #a28cff;
   --accent2: #89e0ff;
+  --good: #79e7b2;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
@@ -47,12 +48,29 @@ h2 { margin: 6px 0 0; font-size: 1.2rem; }
   color: #0b1020;
 }
 .mood.active small { color: rgba(11,16,32,0.75); }
+.interventionsCard, .chartCard, .historyCard { padding: 18px; margin-bottom: 12px; }
+.cardHeader { margin-bottom: 12px; }
+.interventionList { display: grid; gap: 10px; }
+.intervention {
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  border-radius: 18px;
+  min-height: 72px;
+  padding: 14px 16px;
+  text-align: left;
+}
+.intervention strong { display: block; margin-bottom: 6px; }
+.intervention span { color: var(--muted); font-size: 0.88rem; }
+.intervention.active {
+  background: linear-gradient(135deg, rgba(121,231,178,0.22), rgba(137,224,255,0.18));
+  border-color: rgba(121,231,178,0.35);
+}
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
 .statCard { padding: 18px; }
+.statCard.full { grid-column: 1 / -1; }
 .statCard span { color: var(--muted); display: block; }
 .statCard strong { display: block; margin-top: 8px; font-size: 1.7rem; }
-.chartCard, .historyCard { padding: 18px; margin-bottom: 12px; }
-.cardHeader { margin-bottom: 12px; }
 .bars {
   min-height: 220px;
   display: grid;
@@ -87,7 +105,8 @@ h2 { margin: 6px 0 0; font-size: 1.2rem; }
   background: rgba(255,255,255,0.035);
   border: 1px solid rgba(255,255,255,0.05);
 }
-.historyRow span { color: var(--muted); }
+.historyRow div { display: flex; flex-direction: column; gap: 4px; }
+.historyRow span, .historyRow small { color: var(--muted); }
 .emptyState { color: var(--muted); margin: 0; }
 @media (max-width: 520px) {
   .moodRow { grid-template-columns: repeat(5, minmax(0, 1fr)); }
