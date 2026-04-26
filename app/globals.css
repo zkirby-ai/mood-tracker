@@ -72,9 +72,24 @@ h2 {
   border-color: transparent;
 }
 .mood.active small { color: rgba(255,253,247,0.82); }
-.interventionsCard, .chartCard, .historyCard, .experimentCard { padding: 20px; margin-bottom: 14px; }
+.interventionsCard, .noteCard, .trendCard, .chartCard, .historyCard, .experimentCard { padding: 20px; margin-bottom: 14px; }
 .cardHeader { margin-bottom: 12px; }
 .interventionList, .experimentList, .historyList { display: grid; gap: 10px; }
+.noteInput {
+  width: 100%;
+  border: 1px solid rgba(84,73,58,0.1);
+  background: rgba(255,255,255,0.62);
+  color: var(--text);
+  border-radius: 20px;
+  padding: 14px 16px;
+  resize: vertical;
+  min-height: 112px;
+}
+.noteInput::placeholder { color: var(--muted); }
+.noteInput:focus {
+  outline: 2px solid rgba(124,154,146,0.22);
+  border-color: rgba(124,154,146,0.38);
+}
 .intervention {
   border: 1px solid rgba(84,73,58,0.08);
   background: rgba(255,255,255,0.55);
@@ -106,7 +121,7 @@ h2 {
   height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: end;
+  justify-content: flex-end;
   align-items: center;
   gap: 6px;
 }
@@ -151,6 +166,17 @@ h2 {
   align-items: center;
 }
 .historyRow div { display: flex; flex-direction: column; gap: 4px; }
+.trendCopy {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+.historyNote {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
 .emptyState { color: var(--muted); margin: 0; }
 @media (max-width: 520px) {
   .moodRow { grid-template-columns: repeat(5, minmax(0, 1fr)); }

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 type MoodEntry = {
   date: string;
   mood: number;
+  note?: string;
   interventions: {
     noScrollMorning: boolean;
     dailyWalk: boolean;
@@ -62,6 +63,7 @@ export default function HomePage() {
   const [entries, setEntries] = useState<MoodEntry[]>([]);
   const [selectedMood, setSelectedMood] = useState<number | null>(null);
   const [todayInterventions, setTodayInterventions] = useState(EMPTY_INTERVENTIONS);
+  const [todayNote, setTodayNote] = useState('');
 
   useEffect(() => {
     const loaded = loadEntries().sort((a, b) => a.date.localeCompare(b.date));
@@ -69,6 +71,7 @@ export default function HomePage() {
     const today = loaded.find((entry) => entry.date === todayKey());
     setSelectedMood(today?.mood ?? null);
     setTodayInterventions(today?.interventions ?? EMPTY_INTERVENTIONS);
+    setTodayNote(today?.note ?? '');
   }, []);
 
   const recentEntries = useMemo(() => entries.slice(-14), [entries]);
@@ -77,11 +80,59 @@ export default function HomePage() {
     ? (entries.reduce((sum, entry) => sum + entry.mood, 0) / entries.length).toFixed(1)
     : null;
   const interventionAverage = entries.length
-    ? (entries.reduce((sum, entry) => {
-        const completed = Object.values(entry.interventions).filter(Boolean).length;
-        return sum + completed;
-      }, 0) / entries.length).toFixed(1)
+    ? (
+        entries.reduce((sum, entry) => {
+          const completed = Object.values(entry.interventions).filter(Boolean).length;
+          return sum + completed;
+        }, 0) / entries.length
+      ).toFixed(1)
     : null;
+
+  const trendSummary = useMemo(() => {
+    if (recentEntries.length < 2) {
+      return 'Log a few days and I’ll start calling out the direction, not just drawing the bars.';
+    }
+
+    const firstHalf = recentEntries.slice(0, Math.ceil(recentEntries.length / 2));
+    const secondHalf = recentEntries.slice(Math.floor(recentEntries.length / 2));
+    const firstAverage = firstHalf.reduce((sum, entry) => sum + entry.mood, 0) / firstHalf.length;
+    const secondAverage = secondHalf.reduce((sum, entry) => sum + entry.mood, 0) / secondHalf.length;
+    const delta = secondAverage - firstAverage;
+    const roundedDelta = Math.abs(delta).toFixed(1);
+    const bestIntervention = [...INTERVENTION_META]
+      .map((item) => {
+        const withIntervention = entries.filter((entry) => entry.interventions[item.key]);
+        const withoutIntervention = entries.filter((entry) => !entry.interventions[item.key]);
+
+        if (!withIntervention.length || !withoutIntervention.length) {
+          return { title: item.title, lift: null as number | null };
+        }
+
+        const withAverage = withIntervention.reduce((sum, entry) => sum + entry.mood, 0) / withIntervention.length;
+        const withoutAverage = withoutIntervention.reduce((sum, entry) => sum + entry.mood, 0) / withoutIntervention.length;
+
+        return {
+          title: item.title,
+          lift: withAverage - withoutAverage
+        };
+      })
+      .filter((item) => item.lift !== null)
+      .sort((a, b) => (b.lift ?? 0) - (a.lift ?? 0))[0];
+
+    const interventionLine = bestIntervention && (bestIntervention.lift ?? 0) > 0.15
+      ? `${bestIntervention.title} currently has the strongest positive signal.`
+      : 'No intervention is clearly separating from the pack yet.';
+
+    if (delta > 0.35) {
+      return `Mood is trending up lately: the back half of your recent entries is about ${roundedDelta} points stronger than the front half. ${interventionLine}`;
+    }
+
+    if (delta < -0.35) {
+      return `Mood has slipped a bit lately: the back half of your recent entries is about ${roundedDelta} points lower than the front half. ${interventionLine}`;
+    }
+
+    return `Mood is pretty stable right now — recent entries are moving sideways more than up or down. ${interventionLine}`;
+  }, [entries, recentEntries]);
 
   const experimentStats = useMemo(() => {
     return INTERVENTION_META.map(({ key, title, description }) => {
@@ -136,6 +187,7 @@ export default function HomePage() {
       {
         date: today,
         mood: partial.mood ?? 3,
+        note: partial.note ?? '',
         interventions: partial.interventions ?? EMPTY_INTERVENTIONS
       }
     ]);
@@ -143,7 +195,7 @@ export default function HomePage() {
 
   function saveMood(mood: number) {
     setSelectedMood(mood);
-    upsertToday({ mood, interventions: todayInterventions });
+    upsertToday({ mood, note: todayNote, interventions: todayInterventions });
   }
 
   function toggleIntervention(key: keyof typeof EMPTY_INTERVENTIONS) {
@@ -152,7 +204,12 @@ export default function HomePage() {
       [key]: !todayInterventions[key]
     };
     setTodayInterventions(next);
-    upsertToday({ mood: selectedMood ?? 3, interventions: next });
+    upsertToday({ mood: selectedMood ?? 3, note: todayNote, interventions: next });
+  }
+
+  function saveNote(note: string) {
+    setTodayNote(note);
+    upsertToday({ mood: selectedMood ?? 3, note, interventions: todayInterventions });
   }
 
   return (
@@ -188,6 +245,22 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="card noteCard">
+        <div className="cardHeader">
+          <div>
+            <p className="eyebrow">context</p>
+            <h2>What was going on?</h2>
+          </div>
+        </div>
+        <textarea
+          className="noteInput"
+          placeholder="Optional: sleep weird, stressful meeting, great workout, sunshine, anything worth remembering later..."
+          value={todayNote}
+          onChange={(event) => saveNote(event.target.value)}
+          rows={4}
+        />
+      </section>
+
       <section className="grid">
         <article className="card statCard">
           <span>Latest</span>
@@ -201,6 +274,16 @@ export default function HomePage() {
           <span>Avg interventions/day</span>
           <strong>{interventionAverage ?? '—'}</strong>
         </article>
+      </section>
+
+      <section className="card trendCard">
+        <div className="cardHeader">
+          <div>
+            <p className="eyebrow">readout</p>
+            <h2>Plain-English trend</h2>
+          </div>
+        </div>
+        <p className="trendCopy">{trendSummary}</p>
       </section>
 
       <section className="card chartCard">
@@ -273,8 +356,11 @@ export default function HomePage() {
                   <div>
                     <span>{entry.date}</span>
                     <small>{completed}/3 interventions</small>
+                    {entry.note ? <p className="historyNote">{entry.note}</p> : null}
                   </div>
-                  <strong>{entry.mood} · {MOOD_LABELS[entry.mood]}</strong>
+                  <strong>
+                    {entry.mood} · {MOOD_LABELS[entry.mood]}
+                  </strong>
                 </div>
               );
             })
