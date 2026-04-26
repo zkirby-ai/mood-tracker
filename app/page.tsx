@@ -26,6 +26,24 @@ const EMPTY_INTERVENTIONS = {
   postWorkDecompression: false
 };
 
+const INTERVENTION_META = [
+  {
+    key: 'noScrollMorning' as const,
+    title: 'No-scroll morning',
+    description: 'Protect your first attention window'
+  },
+  {
+    key: 'dailyWalk' as const,
+    title: 'Daily walk',
+    description: 'Get your body and head unstuck'
+  },
+  {
+    key: 'postWorkDecompression' as const,
+    title: 'Post-work decompression',
+    description: 'Actually come down after the day'
+  }
+];
+
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -64,6 +82,30 @@ export default function HomePage() {
         return sum + completed;
       }, 0) / entries.length).toFixed(1)
     : null;
+
+  const experimentStats = useMemo(() => {
+    return INTERVENTION_META.map(({ key, title, description }) => {
+      const withIntervention = entries.filter((entry) => entry.interventions[key]);
+      const withoutIntervention = entries.filter((entry) => !entry.interventions[key]);
+
+      const withAverage = withIntervention.length
+        ? withIntervention.reduce((sum, entry) => sum + entry.mood, 0) / withIntervention.length
+        : null;
+      const withoutAverage = withoutIntervention.length
+        ? withoutIntervention.reduce((sum, entry) => sum + entry.mood, 0) / withoutIntervention.length
+        : null;
+      const completionRate = entries.length ? (withIntervention.length / entries.length) * 100 : 0;
+
+      return {
+        key,
+        title,
+        description,
+        withAverage,
+        withoutAverage,
+        completionRate
+      };
+    });
+  }, [entries]);
 
   function persist(nextEntries: MoodEntry[]) {
     const sorted = [...nextEntries].sort((a, b) => a.date.localeCompare(b.date));
@@ -118,7 +160,7 @@ export default function HomePage() {
       <section className="hero card">
         <p className="eyebrow">today</p>
         <h1>How are you feeling?</h1>
-        <p className="sub">One quick check-in. No overthinking.</p>
+        <p className="sub">A small daily check-in. Gentle, honest, and useful over time.</p>
         <div className="moodRow">
           {[1, 2, 3, 4, 5].map((n) => (
             <button key={n} className={n === selectedMood ? 'mood active' : 'mood'} onClick={() => saveMood(n)}>
@@ -137,18 +179,12 @@ export default function HomePage() {
           </div>
         </div>
         <div className="interventionList">
-          <button className={todayInterventions.noScrollMorning ? 'intervention active' : 'intervention'} onClick={() => toggleIntervention('noScrollMorning')}>
-            <strong>No-scroll morning</strong>
-            <span>Protect your first attention window</span>
-          </button>
-          <button className={todayInterventions.dailyWalk ? 'intervention active' : 'intervention'} onClick={() => toggleIntervention('dailyWalk')}>
-            <strong>Daily walk</strong>
-            <span>Get your body and head unstuck</span>
-          </button>
-          <button className={todayInterventions.postWorkDecompression ? 'intervention active' : 'intervention'} onClick={() => toggleIntervention('postWorkDecompression')}>
-            <strong>Post-work decompression</strong>
-            <span>Actually come down after the day</span>
-          </button>
+          {INTERVENTION_META.map((item) => (
+            <button key={item.key} className={todayInterventions[item.key] ? 'intervention active' : 'intervention'} onClick={() => toggleIntervention(item.key)}>
+              <strong>{item.title}</strong>
+              <span>{item.description}</span>
+            </button>
+          ))}
         </div>
       </section>
 
@@ -187,6 +223,36 @@ export default function HomePage() {
           ) : (
             <p className="emptyState">Log a few days and I’ll start drawing the line of your life.</p>
           )}
+        </div>
+      </section>
+
+      <section className="card experimentCard">
+        <div className="cardHeader">
+          <div>
+            <p className="eyebrow">experiment view</p>
+            <h2>What seems to help?</h2>
+          </div>
+        </div>
+        <div className="experimentList">
+          {experimentStats.map((item) => (
+            <article className="experimentRow" key={item.key}>
+              <div className="experimentHead">
+                <strong>{item.title}</strong>
+                <span>{Math.round(item.completionRate)}% completion</span>
+              </div>
+              <p>{item.description}</p>
+              <div className="experimentStats">
+                <div>
+                  <span>When done</span>
+                  <strong>{item.withAverage ? item.withAverage.toFixed(1) : '—'}</strong>
+                </div>
+                <div>
+                  <span>When missed</span>
+                  <strong>{item.withoutAverage ? item.withoutAverage.toFixed(1) : '—'}</strong>
+                </div>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
 

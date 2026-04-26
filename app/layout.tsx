@@ -8,13 +8,13 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'default',
     title: 'Mood Tracker'
   }
 };
 
 export const viewport: Viewport = {
-  themeColor: '#10131f'
+  themeColor: '#f5efe4'
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

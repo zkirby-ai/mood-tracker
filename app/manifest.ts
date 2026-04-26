@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'A tiny app for tracking daily mood over time.',
     start_url: '/',
     display: 'standalone',
-    background_color: '#10131f',
-    theme_color: '#10131f',
+    background_color: '#f5efe4',
+    theme_color: '#f5efe4',
     orientation: 'portrait'
   };
 }
