@@ -22,6 +22,11 @@ body {
 }
 button, input, select { font: inherit; }
 .shell { width: min(100%, 560px); margin: 0 auto; padding: 18px 12px 40px; }
+.metricsGrid {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 14px;
+}
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -74,7 +79,30 @@ h2 {
 .mood.active small { color: rgba(255,253,247,0.82); }
 .interventionsCard, .noteCard, .trendCard, .chartCard, .historyCard, .experimentCard { padding: 20px; margin-bottom: 14px; }
 .cardHeader { margin-bottom: 12px; }
+.cardHeader.compact {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
 .interventionList, .experimentList, .historyList { display: grid; gap: 10px; }
+.metricCard {
+  padding: 20px;
+}
+.metricDescription {
+  margin: 0 0 14px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.metricReadout {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.05rem;
+  color: var(--text);
+  text-align: right;
+}
+.scoreRow {
+  margin-top: 4px;
+}
 .noteInput {
   width: 100%;
   border: 1px solid rgba(84,73,58,0.1);
@@ -106,6 +134,9 @@ h2 {
   border-color: rgba(124,154,146,0.35);
 }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.statsGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .statCard { padding: 18px; }
 .statCard.full { grid-column: 1 / -1; }
 .statCard span { color: var(--muted); display: block; }
@@ -152,6 +183,9 @@ h2 {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+.experimentStats.triple {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .experimentStats div {
   padding: 12px;
   border-radius: 14px;
@@ -165,7 +199,22 @@ h2 {
   gap: 12px;
   align-items: center;
 }
+.historyRow.detailed {
+  align-items: flex-start;
+}
 .historyRow div { display: flex; flex-direction: column; gap: 4px; }
+.historyMetrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.historyMetrics small {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.6);
+  border: 1px solid rgba(84,73,58,0.08);
+}
 .trendCopy {
   margin: 0;
   color: var(--text);
@@ -180,7 +229,9 @@ h2 {
 .emptyState { color: var(--muted); margin: 0; }
 @media (max-width: 520px) {
   .moodRow { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .grid { grid-template-columns: 1fr 1fr; }
+  .grid, .statsGrid { grid-template-columns: 1fr 1fr; }
   .bars { gap: 6px; }
-  .experimentHead { flex-direction: column; align-items: flex-start; }
+  .experimentHead, .cardHeader.compact { flex-direction: column; align-items: flex-start; }
+  .metricReadout { text-align: left; }
+  .experimentStats.triple { grid-template-columns: 1fr; }
 }
