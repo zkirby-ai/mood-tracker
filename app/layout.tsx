@@ -32,6 +32,10 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'default',
     title: 'Mood'
+  },
+  icons: {
+    icon: '/icon-192.png',
+    apple: '/icon-192.png'
   }
 };
 

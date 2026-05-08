@@ -1,6 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import {
+  DEFAULT_PUSH_API_BASE,
+  cancelPush,
+  enableBackgroundPush,
+  loadPushSetup,
+  nextEveningReminderDate,
+  persistPushSetup as persistPushSetupRaw,
+  schedulePush,
+  type PushSetup
+} from '../lib/push';
 
 type Interventions = {
   noScrollMorning: boolean;
@@ -20,7 +30,7 @@ type MoodEntry = {
   interventions: Interventions;
 };
 
-type Tab = 'today' | 'insights';
+type Tab = 'today' | 'insights' | 'settings';
 
 const SCORE_LABELS: Record<MetricKey, Record<number, string>> = {
   mood: { 1: 'Rough', 2: 'Low', 3: 'Okay', 4: 'Good', 5: 'Great' },
@@ -123,6 +133,8 @@ export default function HomePage() {
   const [todayScores, setTodayScores] = useState<Record<MetricKey, number>>({ mood: 0, anxiety: 0, energy: 0, sleep: 0 });
   const [todayInterventions, setTodayInterventions] = useState<Interventions>(EMPTY_INTERVENTIONS);
   const [todayNote, setTodayNote] = useState('');
+  const [pushSetup, setPushSetup] = useState<PushSetup>({ appSecret: '', apiBase: DEFAULT_PUSH_API_BASE, endpoint: null, enabled: false });
+  const [pushStatus, setPushStatus] = useState('');
 
   useEffect(() => {
     const loaded = loadEntries().sort((a, b) => a.date.localeCompare(b.date));
@@ -136,6 +148,15 @@ export default function HomePage() {
     });
     setTodayInterventions(today?.interventions ?? EMPTY_INTERVENTIONS);
     setTodayNote(today?.note ?? '');
+    const loadedPush = loadPushSetup();
+    setPushSetup(loadedPush);
+    if (loadedPush.enabled) {
+      void schedulePush(loadedPush, {
+        title: 'Daily check-in',
+        body: "How was today? Log your mood.",
+        sendAt: nextEveningReminderDate()
+      });
+    }
     setMounted(true);
   }, []);
 
@@ -148,6 +169,44 @@ export default function HomePage() {
     const sorted = [...next].map(normalize).sort((a, b) => a.date.localeCompare(b.date));
     setEntries(sorted);
     window.localStorage.setItem('mood-tracker-entries', JSON.stringify(sorted));
+    if (pushSetup.enabled) {
+      void schedulePush(pushSetup, {
+        title: 'Daily check-in',
+        body: "How was today? Log your mood.",
+        sendAt: nextEveningReminderDate()
+      });
+    }
+  }
+
+  function persistPush(next: PushSetup) {
+    setPushSetup(next);
+    persistPushSetupRaw(next);
+  }
+
+  async function handleEnablePush() {
+    setPushStatus('Setting up…');
+    const result = await enableBackgroundPush(pushSetup);
+    if (!result.ok) {
+      setPushStatus(`Push setup failed: ${result.reason}`);
+      return;
+    }
+    setPushSetup(result.setup);
+    const sendAt = nextEveningReminderDate();
+    const scheduled = await schedulePush(result.setup, {
+      title: 'Daily check-in',
+      body: "How was today? Log your mood.",
+      sendAt
+    });
+    setPushStatus(scheduled
+      ? `Push enabled. Next reminder ${sendAt.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}.`
+      : 'Push enabled, but scheduling the reminder failed.'
+    );
+  }
+
+  async function handleDisablePush() {
+    await cancelPush(pushSetup);
+    persistPush({ ...pushSetup, enabled: false });
+    setPushStatus('Push disabled. Reminder cancelled.');
   }
 
   function upsertToday(partial: Partial<MoodEntry>) {
@@ -471,14 +530,64 @@ export default function HomePage() {
         <>
           {tab === 'today' && <TodayTab />}
           {tab === 'insights' && <InsightsTab />}
+          {tab === 'settings' && (
+            <SettingsTab
+              pushSetup={pushSetup}
+              status={pushStatus}
+              onChange={persistPush}
+              onEnable={handleEnablePush}
+              onDisable={handleDisablePush}
+            />
+          )}
         </>
       )}
 
       <nav className="tabBar" aria-label="Sections">
         <button className={`tab ${tab === 'today' ? 'active' : ''}`} onClick={() => setTab('today')}>Today</button>
         <button className={`tab ${tab === 'insights' ? 'active' : ''}`} onClick={() => setTab('insights')}>Insights</button>
+        <button className={`tab ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}>Settings</button>
       </nav>
     </main>
+  );
+}
+
+function SettingsTab({
+  pushSetup,
+  status,
+  onChange,
+  onEnable,
+  onDisable
+}: {
+  pushSetup: PushSetup;
+  status: string;
+  onChange: (s: PushSetup) => void;
+  onEnable: () => void;
+  onDisable: () => void;
+}) {
+  return (
+    <div className="settingsList">
+      <article className="settingsRow">
+        <span className="sLabel">Reminders</span>
+        <h3>Evening check-in push</h3>
+        <p>Sends a push every evening at 10:45 PM. Re-schedules itself each time you log an entry.</p>
+        <input
+          className="settingsInput"
+          value={pushSetup.appSecret}
+          onChange={(e) => onChange({ ...pushSetup, appSecret: e.target.value })}
+          placeholder="Shared secret"
+        />
+        {pushSetup.enabled ? (
+          <>
+            <button className="btn primary" onClick={onEnable}>Re-enable on this device</button>
+            <button className="btn ghost" onClick={onDisable}>Disable reminder</button>
+          </>
+        ) : (
+          <button className="btn primary" onClick={onEnable}>Enable evening reminder</button>
+        )}
+        {status ? <p className={pushSetup.enabled ? 'statusOk' : 'statusInfo'}>{status}</p> : null}
+        {pushSetup.enabled && !status ? <p className="statusOk">Background push is enabled on this device.</p> : null}
+      </article>
+    </div>
   );
 }
 
