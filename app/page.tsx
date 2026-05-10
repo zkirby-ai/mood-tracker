@@ -28,6 +28,7 @@ type MoodEntry = {
   sleep: number;
   note?: string;
   interventions: Interventions;
+  savedAt?: number;
 };
 
 type Tab = 'today' | 'insights' | 'settings';
@@ -72,7 +73,8 @@ function normalize(raw: Partial<MoodEntry> & { date: string }): MoodEntry {
     energy: raw.energy ?? 0,
     sleep: raw.sleep ?? 0,
     note: raw.note ?? '',
-    interventions: { ...EMPTY_INTERVENTIONS, ...(raw.interventions ?? {}) }
+    interventions: { ...EMPTY_INTERVENTIONS, ...(raw.interventions ?? {}) },
+    savedAt: raw.savedAt
   };
 }
 
@@ -185,22 +187,27 @@ export default function HomePage() {
 
   async function handleEnablePush() {
     setPushStatus('Setting up…');
-    const result = await enableBackgroundPush(pushSetup);
-    if (!result.ok) {
-      setPushStatus(`Push setup failed: ${result.reason}`);
-      return;
+    try {
+      const result = await enableBackgroundPush(pushSetup);
+      if (!result.ok) {
+        setPushStatus(`Push setup failed: ${result.reason}`);
+        return;
+      }
+      setPushSetup(result.setup);
+      const sendAt = nextEveningReminderDate();
+      const scheduled = await schedulePush(result.setup, {
+        title: 'Daily check-in',
+        body: "How was today? Log your mood.",
+        sendAt
+      });
+      setPushStatus(scheduled
+        ? `Push enabled. Next reminder ${sendAt.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}.`
+        : 'Push enabled, but scheduling the reminder failed.'
+      );
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'Unknown error';
+      setPushStatus(`Push setup failed: ${reason}`);
     }
-    setPushSetup(result.setup);
-    const sendAt = nextEveningReminderDate();
-    const scheduled = await schedulePush(result.setup, {
-      title: 'Daily check-in',
-      body: "How was today? Log your mood.",
-      sendAt
-    });
-    setPushStatus(scheduled
-      ? `Push enabled. Next reminder ${sendAt.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}.`
-      : 'Push enabled, but scheduling the reminder failed.'
-    );
   }
 
   async function handleDisablePush() {
@@ -209,47 +216,77 @@ export default function HomePage() {
     setPushStatus('Push disabled. Reminder cancelled.');
   }
 
-  function upsertToday(partial: Partial<MoodEntry>) {
-    const t = todayKey();
-    const idx = entries.findIndex((e) => e.date === t);
-    if (idx >= 0) {
-      const next = entries.map((e, i) =>
-        i === idx
-          ? normalize({ ...e, ...partial, date: t, interventions: partial.interventions ?? e.interventions })
-          : e
-      );
-      persist(next);
-      return;
-    }
-    persist([
-      ...entries,
-      normalize({
-        date: t,
-        mood: partial.mood,
-        anxiety: partial.anxiety,
-        energy: partial.energy,
-        sleep: partial.sleep,
-        note: partial.note ?? '',
-        interventions: partial.interventions ?? EMPTY_INTERVENTIONS
-      })
-    ]);
-  }
+  const savedToday = useMemo(() => entries.find((e) => e.date === todayKey()) ?? null, [entries]);
+
+  const draftHasContent =
+    todayScores.mood > 0 ||
+    todayScores.anxiety > 0 ||
+    todayScores.energy > 0 ||
+    todayScores.sleep > 0 ||
+    todayNote.trim().length > 0 ||
+    Object.values(todayInterventions).some(Boolean);
+
+  const isDirty = useMemo(() => {
+    if (!savedToday) return draftHasContent;
+    return (
+      savedToday.mood !== todayScores.mood ||
+      savedToday.anxiety !== todayScores.anxiety ||
+      savedToday.energy !== todayScores.energy ||
+      savedToday.sleep !== todayScores.sleep ||
+      (savedToday.note ?? '') !== todayNote ||
+      savedToday.interventions.noScrollMorning !== todayInterventions.noScrollMorning ||
+      savedToday.interventions.dailyWalk !== todayInterventions.dailyWalk ||
+      savedToday.interventions.postWorkDecompression !== todayInterventions.postWorkDecompression
+    );
+  }, [savedToday, todayScores, todayInterventions, todayNote, draftHasContent]);
 
   function setMetric(k: MetricKey, v: number) {
-    const next = { ...todayScores, [k]: v };
-    setTodayScores(next);
-    upsertToday({ ...next, note: todayNote, interventions: todayInterventions });
+    setTodayScores((prev) => ({ ...prev, [k]: prev[k] === v ? 0 : v }));
   }
 
   function toggleI(k: keyof Interventions) {
-    const next = { ...todayInterventions, [k]: !todayInterventions[k] };
-    setTodayInterventions(next);
-    upsertToday({ ...todayScores, note: todayNote, interventions: next });
+    setTodayInterventions((prev) => ({ ...prev, [k]: !prev[k] }));
   }
 
   function setNote(n: string) {
     setTodayNote(n);
-    upsertToday({ ...todayScores, note: n, interventions: todayInterventions });
+  }
+
+  function saveToday() {
+    const t = todayKey();
+    const idx = entries.findIndex((e) => e.date === t);
+    const entry = normalize({
+      date: t,
+      mood: todayScores.mood,
+      anxiety: todayScores.anxiety,
+      energy: todayScores.energy,
+      sleep: todayScores.sleep,
+      note: todayNote,
+      interventions: todayInterventions,
+      savedAt: Date.now()
+    });
+    if (idx >= 0) {
+      persist(entries.map((e, i) => (i === idx ? entry : e)));
+    } else {
+      persist([...entries, entry]);
+    }
+  }
+
+  function discardChanges() {
+    if (savedToday) {
+      setTodayScores({
+        mood: savedToday.mood,
+        anxiety: savedToday.anxiety,
+        energy: savedToday.energy,
+        sleep: savedToday.sleep
+      });
+      setTodayInterventions(savedToday.interventions);
+      setTodayNote(savedToday.note ?? '');
+    } else {
+      setTodayScores({ mood: 0, anxiety: 0, energy: 0, sleep: 0 });
+      setTodayInterventions(EMPTY_INTERVENTIONS);
+      setTodayNote('');
+    }
   }
 
   const recentEntries = useMemo(() => entries.slice(-14), [entries]);
@@ -339,6 +376,17 @@ export default function HomePage() {
 
   function TodayTab() {
     const completedToday = Object.values(todayInterventions).filter(Boolean).length;
+    const savedAtLabel = savedToday?.savedAt
+      ? new Date(savedToday.savedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+      : null;
+    const saveLabel = savedToday ? 'Update' : 'Save';
+    const statusText = isDirty
+      ? savedToday
+        ? 'Unsaved changes'
+        : 'Not saved yet'
+      : savedToday
+        ? savedAtLabel ? `Saved at ${savedAtLabel}` : 'Saved'
+        : 'Nothing logged yet';
     return (
       <>
         <section className="checkinCard">
@@ -382,6 +430,26 @@ export default function HomePage() {
             placeholder="Anything worth remembering later? (optional)"
             rows={2}
           />
+
+          <div className="saveBar">
+            <span className={`saveStatus ${isDirty ? 'dirty' : savedToday ? 'ok' : 'idle'}`}>
+              {statusText}
+            </span>
+            <div className="saveActions">
+              {isDirty && (
+                <button className="btn ghost" onClick={discardChanges}>
+                  {savedToday ? 'Revert' : 'Clear'}
+                </button>
+              )}
+              <button
+                className="btn primary"
+                onClick={saveToday}
+                disabled={!isDirty || !draftHasContent}
+              >
+                {saveLabel}
+              </button>
+            </div>
+          </div>
         </section>
 
         <div className="sectionHead">
@@ -395,14 +463,16 @@ export default function HomePage() {
             const tone = entry?.mood ?? 0;
             const isToday = iso === todayKey();
             return (
-              <div className="dayCell" key={iso}>
+              <div className={`dayCell ${isToday ? 'isToday' : ''}`} key={iso}>
                 <div
                   className={`ddot ${tone === 0 ? 'empty' : ''} ${isToday ? 'today' : ''}`}
                   style={tone > 0 ? {
                     background: `color-mix(in srgb, var(--accent) ${tone * 18}%, var(--surface-2))`
                   } : undefined}
                   title={entry ? `${iso}: mood ${tone}` : iso}
-                />
+                >
+                  {tone > 0 ? <span className="ddval">{tone}</span> : null}
+                </div>
                 <span className="ddl">{dayName(iso)}</span>
               </div>
             );

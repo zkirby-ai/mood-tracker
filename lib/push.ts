@@ -43,26 +43,34 @@ export async function enableBackgroundPush(setup: PushSetup): Promise<{ ok: true
   if (!('serviceWorker' in navigator)) return { ok: false, reason: 'Service workers unavailable.' };
   if (!('PushManager' in window)) return { ok: false, reason: 'PushManager unavailable.' };
 
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') return { ok: false, reason: 'Notification permission was not granted.' };
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return { ok: false, reason: 'Notification permission was not granted.' };
 
-  const registration = await navigator.serviceWorker.register('/sw.js');
-  const keyResponse = await fetch(`${setup.apiBase}/vapid-public-key`, {
-    headers: { 'x-app-secret': setup.appSecret, 'bypass-tunnel-reminder': '1' }
-  });
-  const { publicKey } = (await keyResponse.json()) as { publicKey: string };
-  const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(publicKey)
-  });
-  await fetch(`${setup.apiBase}/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-app-secret': setup.appSecret, 'bypass-tunnel-reminder': '1' },
-    body: JSON.stringify({ subscription })
-  });
-  const next: PushSetup = { ...setup, endpoint: subscription.endpoint, enabled: true };
-  persistPushSetup(next);
-  return { ok: true, setup: next };
+    const registration = await navigator.serviceWorker.register('/sw.js');
+    const keyResponse = await fetch(`${setup.apiBase}/vapid-public-key`, {
+      headers: { 'x-app-secret': setup.appSecret, 'bypass-tunnel-reminder': '1' }
+    });
+    if (!keyResponse.ok) return { ok: false, reason: `Couldn't fetch VAPID key (${keyResponse.status}).` };
+    const { publicKey } = (await keyResponse.json()) as { publicKey?: string };
+    if (!publicKey) return { ok: false, reason: 'Push server did not return a VAPID public key.' };
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey)
+    });
+    const registerResponse = await fetch(`${setup.apiBase}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-app-secret': setup.appSecret, 'bypass-tunnel-reminder': '1' },
+      body: JSON.stringify({ subscription })
+    });
+    if (!registerResponse.ok) return { ok: false, reason: `Push server rejected registration (${registerResponse.status}).` };
+    const next: PushSetup = { ...setup, endpoint: subscription.endpoint, enabled: true };
+    persistPushSetup(next);
+    return { ok: true, setup: next };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : 'Unknown error during push setup.';
+    return { ok: false, reason };
+  }
 }
 
 export async function schedulePush(setup: PushSetup, payload: { title: string; body: string; sendAt: Date }) {

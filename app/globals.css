@@ -303,13 +303,36 @@ h1, h2, h3 { margin: 0; }
 .note:focus { border-color: var(--accent); }
 .note::placeholder { color: var(--text-3); font-style: italic; }
 
+/* ---------- Save bar ---------- */
+
+.saveBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.saveStatus {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.saveStatus.idle { color: var(--text-3); }
+.saveStatus.ok { color: var(--good); }
+.saveStatus.dirty { color: var(--accent); }
+.saveActions {
+  display: inline-flex;
+  gap: 8px;
+}
+
 /* ---------- Streak / mini week ---------- */
 
 .weekStrip {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-  padding: 14px;
+  gap: 8px;
+  padding: 14px 12px;
   border-radius: 16px;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -317,25 +340,49 @@ h1, h2, h3 { margin: 0; }
 .dayCell {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 6px;
+  min-width: 0;
 }
 .dayCell .ddot {
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 10px;
-  background: var(--line-soft);
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 160ms ease, border-color 160ms ease;
 }
-.dayCell .ddot.empty { background: transparent; border: 1px dashed var(--line); }
-.dayCell .ddot.today { box-shadow: 0 0 0 2px var(--accent); }
+.dayCell .ddot.empty {
+  background: var(--surface-2);
+  border-style: dashed;
+  border-color: var(--line);
+}
+.dayCell .ddot.today {
+  border-color: var(--accent);
+  border-style: solid;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.dayCell .ddot .ddval {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  mix-blend-mode: multiply;
+}
 .dayCell .ddl {
   font-family: var(--font-mono);
   font-size: 9px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: var(--text-3);
   text-transform: uppercase;
+  text-align: center;
 }
+.dayCell.isToday .ddl { color: var(--accent); font-weight: 600; }
 
 /* ---------- Section heads ---------- */
 
