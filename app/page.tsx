@@ -63,7 +63,14 @@ const INTERVENTION_META = [
   { key: 'postWorkDecompression' as const, title: 'Post-work decompression', desc: 'Actually come down after work' }
 ];
 
-function todayKey() { return new Date().toISOString().slice(0, 10); }
+function localDateKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function todayKey() { return localDateKey(new Date()); }
 
 function normalize(raw: Partial<MoodEntry> & { date: string }): MoodEntry {
   return {
@@ -111,7 +118,7 @@ function lastNDays(n: number) {
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    days.push(d.toISOString().slice(0, 10));
+    days.push(localDateKey(d));
   }
   return days;
 }
