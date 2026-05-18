@@ -13,7 +13,7 @@ import {
 } from '../lib/push';
 
 type Interventions = {
-  noScrollMorning: boolean;
+  eveningJournal: boolean;
   dailyWalk: boolean;
   postWorkDecompression: boolean;
 };
@@ -28,6 +28,7 @@ type MoodEntry = {
   sleep: number;
   note?: string;
   interventions: Interventions;
+  archivedInterventions?: Record<string, boolean>;
   savedAt?: number;
 };
 
@@ -52,14 +53,14 @@ const METRICS: Array<{
 ];
 
 const EMPTY_INTERVENTIONS: Interventions = {
-  noScrollMorning: false,
+  eveningJournal: false,
   dailyWalk: false,
   postWorkDecompression: false
 };
 
 const INTERVENTION_META = [
-  { key: 'noScrollMorning' as const, title: 'No-scroll morning', desc: 'Protect the first attention window' },
-  { key: 'dailyWalk' as const, title: 'Daily walk', desc: 'Get unstuck for 15–25 min' },
+  { key: 'eveningJournal' as const, title: 'Evening journaling', desc: '5 min brain-dump before bed' },
+  { key: 'dailyWalk' as const, title: 'Short walk', desc: 'Any length, even 5 min counts' },
   { key: 'postWorkDecompression' as const, title: 'Post-work decompression', desc: 'Actually come down after work' }
 ];
 
@@ -72,7 +73,19 @@ function localDateKey(date = new Date()) {
 
 function todayKey() { return localDateKey(new Date()); }
 
+const ACTIVE_INTERVENTION_KEYS = new Set<string>(Object.keys(EMPTY_INTERVENTIONS));
+
 function normalize(raw: Partial<MoodEntry> & { date: string }): MoodEntry {
+  const rawInterventions = (raw.interventions ?? {}) as Record<string, boolean>;
+  const active: Interventions = { ...EMPTY_INTERVENTIONS };
+  const archived: Record<string, boolean> = { ...(raw.archivedInterventions ?? {}) };
+  for (const [k, v] of Object.entries(rawInterventions)) {
+    if (ACTIVE_INTERVENTION_KEYS.has(k)) {
+      active[k as keyof Interventions] = !!v;
+    } else {
+      archived[k] = !!v;
+    }
+  }
   return {
     date: raw.date,
     mood: raw.mood ?? 0,
@@ -80,7 +93,8 @@ function normalize(raw: Partial<MoodEntry> & { date: string }): MoodEntry {
     energy: raw.energy ?? 0,
     sleep: raw.sleep ?? 0,
     note: raw.note ?? '',
-    interventions: { ...EMPTY_INTERVENTIONS, ...(raw.interventions ?? {}) },
+    interventions: active,
+    archivedInterventions: Object.keys(archived).length ? archived : undefined,
     savedAt: raw.savedAt
   };
 }
@@ -241,7 +255,7 @@ export default function HomePage() {
       savedToday.energy !== todayScores.energy ||
       savedToday.sleep !== todayScores.sleep ||
       (savedToday.note ?? '') !== todayNote ||
-      savedToday.interventions.noScrollMorning !== todayInterventions.noScrollMorning ||
+      savedToday.interventions.eveningJournal !== todayInterventions.eveningJournal ||
       savedToday.interventions.dailyWalk !== todayInterventions.dailyWalk ||
       savedToday.interventions.postWorkDecompression !== todayInterventions.postWorkDecompression
     );
@@ -270,6 +284,7 @@ export default function HomePage() {
       sleep: todayScores.sleep,
       note: todayNote,
       interventions: todayInterventions,
+      archivedInterventions: savedToday?.archivedInterventions,
       savedAt: Date.now()
     });
     if (idx >= 0) {
